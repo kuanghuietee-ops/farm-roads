@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="theme-color" content="#1b5e20" />
+<title>Farm Roads Mapper</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<style>
+  :root{
+    --goldhill:#e53935;   /* Majestic Goldhill - Red */
+    --unggul:#fbc02d;     /* FC Unggul - Yellow */
+    --kukuh:#1e88e5;      /* Durio Kukuh - Blue */
+    --bg:#0f1d12;
+    --panel:#162a1a;
+    --text:#e8f5e9;
+    --muted:#9bb59f;
+    --accent:#4caf50;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);overflow:hidden;}
+  #app{display:flex;flex-direction:column;height:100vh;height:100dvh;}
+  header{background:var(--panel);padding:10px 14px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #234;flex-shrink:0;z-index:1000;}
+  header h1{margin:0;font-size:16px;font-weight:600;flex:1;}
+  header h1 small{color:var(--muted);font-weight:400;font-size:12px;display:block;}
+  .mode-tabs{display:flex;background:#0a160d;border-radius:8px;padding:3px;}
+  .mode-tabs button{background:none;border:none;color:var(--muted);padding:6px 12px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;}
+  .mode-tabs button.active{background:var(--accent);color:#fff;}
+  #map{flex:1;width:100%;background:#0a1a0e;}
+  .leaflet-container{background:#0a1a0e !important;}
+  .panel{background:var(--panel);padding:10px 14px;border-top:1px solid #234;flex-shrink:0;}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  .row + .row{margin-top:8px;}
+  label{font-size:12px;color:var(--muted);}
+  select,input,textarea{background:#0a160d;color:var(--text);border:1px solid #2a3a2e;border-radius:6px;padding:8px 10px;font-size:14px;width:100%;}
+  select{appearance:none;background-image:url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2210%22%20height%3D%226%22%3E%3Cpath%20fill%3D%22%239bb59f%22%20d%3D%22M0%200l5%206%205-6z%22%2F%3E%3C%2Fsvg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:30px;}
+  button.btn{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:12px 16px;font-size:15px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;justify-content:center;}
+  button.btn:disabled{opacity:.4;cursor:not-allowed;}
+  button.btn.danger{background:#e53935;}
+  button.btn.warn{background:#fb8c00;}
+  button.btn.ghost{background:#2a3a2e;}
+  button.btn.big{padding:18px 16px;font-size:17px;width:100%;}
+  .status-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:20px;background:#0a160d;font-size:12px;color:var(--muted);}
+  .status-chip .dot{width:8px;height:8px;border-radius:50%;background:#666;}
+  .status-chip.rec .dot{background:#e53935;animation:pulse 1s infinite;}
+  .status-chip.gps .dot{background:#4caf50;}
+  .status-chip.bnd{background:#3d3d00;color:#fff59d;}
+  .status-chip.bnd .dot{background:#fff59d;}
+  .status-chip.dup{background:#3d2600;color:#ffcc80;}
+  .status-chip.dup .dot{background:#ffcc80;}
+  #syncChip{margin-left:auto;margin-right:8px;}
+  #syncChip.online{background:#0d2818;color:#a5d6a7;}
+  #syncChip.online .dot{background:#4caf50;}
+  #syncChip.offline{background:#2a1a00;color:#ffcc80;}
+  #syncChip.offline .dot{background:#ff9800;}
+  #syncChip.error{background:#2a0d0d;color:#ef9a9a;}
+  #syncChip.error .dot{background:#e53935;}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+  .legend{display:flex;gap:10px;flex-wrap:wrap;font-size:12px;}
+  .legend .swatch{display:inline-flex;align-items:center;gap:5px;}
+  .legend .swatch i{display:inline-block;width:14px;height:4px;border-radius:2px;}
+  .stats{font-size:12px;color:var(--muted);}
+  .stats b{color:var(--text);}
+  /* Admin modal */
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;z-index:2000;padding:14px;}
+  .modal.open{display:flex;}
+  .modal-card{background:var(--panel);border-radius:12px;padding:18px;max-width:480px;width:100%;max-height:85vh;overflow-y:auto;}
+  .modal-card h2{margin:0 0 10px;font-size:18px;}
+  .field{margin-bottom:10px;}
+  .field label{display:block;margin-bottom:4px;}
+  .marker-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px;}
+  .marker-grid button{background:#0a160d;border:1px solid #2a3a2e;border-radius:6px;padding:10px;color:var(--text);font-size:13px;cursor:pointer;text-align:left;}
+  .marker-grid button.sel{border-color:var(--accent);background:#1b3520;}
+  .road-list,.marker-list{list-style:none;margin:0;padding:0;}
+  .road-list li,.marker-list li{padding:8px;border:1px solid #2a3a2e;border-radius:8px;margin-bottom:6px;display:flex;align-items:center;gap:8px;font-size:13px;}
+  .road-list li .col{width:14px;height:14px;border-radius:3px;flex-shrink:0;}
+  .road-list li .lbl{flex:1;}
+  .road-list li button,.marker-list li button{background:#2a3a2e;border:none;color:#fff;border-radius:5px;padding:5px 9px;font-size:11px;cursor:pointer;}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#000c;color:#fff;padding:10px 16px;border-radius:24px;font-size:13px;z-index:3000;opacity:0;transition:opacity .3s;}
+  .toast.show{opacity:1;}
+  /* Leaflet marker label */
+  .marker-label{background:rgba(0,0,0,.75);color:#fff;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:600;white-space:nowrap;border:none;box-shadow:none;}
+  .marker-label::before{display:none;}
+  .leaflet-control-attribution{font-size:9px !important;background:rgba(0,0,0,.5) !important;color:#aaa !important;}
+  .leaflet-control-attribution a{color:#aaa !important;}
+  .gps-dot{background:#2196f3;border:3px solid #fff;border-radius:50%;box-shadow:0 0 10px #2196f3;}
+  .gps-accuracy{stroke:#2196f3;fill:#2196f3;fill-opacity:.15;}
+  @media (min-width:768px){
+    .desktop-row{display:flex;gap:14px;}
+    .desktop-row > *{flex:1;}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div>
+      <h1>Farm Roads<small id="modeSub">Recorder Mode</small></h1>
+    </div>
+    <span id="syncChip" class="status-chip" title="Cloud sync status"><span class="dot"></span><span id="syncTxt">Sync…</span></span>
+    <div class="mode-tabs">
+      <button id="tabRec" class="active" onclick="switchMode('rec')">Record</button>
+      <button id="tabAdmin" onclick="switchMode('admin')">Admin</button>
+    </div>
+  </header>
+  <div id="map"></div>
+
+  <!-- RECORDER PANEL -->
+  <div id="recPanel" class="panel">
+    <div class="row">
+      <span id="gpsChip" class="status-chip"><span class="dot"></span><span id="gpsTxt">GPS off</span></span>
+      <span id="recChip" class="status-chip" style="display:none;"><span class="dot"></span>Recording</span>
+      <span class="stats" style="margin-left:auto;">
+        <b id="ptCount">0</b> pts · <b id="distTxt">0</b> m
+      </span>
+    </div>
+    <div class="row">
+      <div style="flex:1;">
+        <label>Company / Estate</label>
+        <select id="companySel">
+          <option value="goldhill">Majestic Goldhill (Red) — 123 ac</option>
+          <option value="unggul">FC Unggul (Yellow) — 131 ac</option>
+          <option value="kukuh">Durio Kukuh (Blue) — 100 ac</option>
+        </select>
+      </div>
+      <div style="flex:1;">
+        <label>Road name (optional)</label>
+        <input id="roadName" placeholder="e.g. Main entry, Block A loop" />
+      </div>
+    </div>
+    <div class="row">
+      <button id="btnStart" class="btn big" onclick="startRecording()">▶ Start Recording</button>
+      <button id="btnStop" class="btn big danger" style="display:none;" onclick="stopRecording()">■ Stop & Save</button>
+    </div>
+    <div class="row">
+      <button class="btn ghost" onclick="centerOnMe()">📍 My location</button>
+      <button class="btn ghost" onclick="openExport()">⇩ Export</button>
+      <button class="btn ghost" onclick="openImport()">⇧ Import</button>
+      <div class="legend" style="margin-left:auto;">
+        <span class="swatch"><i style="background:var(--goldhill)"></i>Goldhill</span>
+        <span class="swatch"><i style="background:var(--unggul)"></i>Unggul</span>
+        <span class="swatch"><i style="background:var(--kukuh)"></i>Kukuh</span>
+        <span class="swatch"><i style="background:repeating-linear-gradient(90deg,#fff 0 4px,transparent 4px 8px);height:3px;"></i>Boundary</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ADMIN PANEL -->
+  <div id="adminPanel" class="panel" style="display:none;">
+    <div class="row">
+      <span class="stats">Roads: <b id="adminRoads">0</b> · Markers: <b id="adminMarkers">0</b></span>
+      <span class="stats" style="margin-left:auto;" id="adminHint">Tap the map to add a marker</span>
+    </div>
+    <div class="row">
+      <button class="btn" onclick="openMarkerPlacer()">＋ Add Marker</button>
+      <button class="btn ghost" onclick="openRoadList()">🛣 Roads</button>
+      <button class="btn ghost" onclick="openMarkerList()">📍 Markers</button>
+      <button class="btn ghost" onclick="openExport()">⇩ Export</button>
+      <button class="btn ghost" onclick="openImport()">⇧ Import</button>
+    </div>
+  </div>
+</div>
+
+<!-- MARKER MODAL -->
+<div class="modal" id="markerModal">
+  <div class="modal-card">
+    <h2 id="markerModalTitle">Add marker</h2>
+    <div class="field">
+      <label>Type</label>
+      <div class="marker-grid" id="markerTypeGrid"></div>
+    </div>
+    <div class="field">
+      <label>Name / Label</label>
+      <input id="markerName" placeholder="e.g. Pond 3, North Sprayer" />
+    </div>
+    <div class="field">
+      <label>Description / Notes</label>
+      <textarea id="markerDesc" rows="3" placeholder="Capacity, condition, access notes…"></textarea>
+    </div>
+    <div class="field" id="markerCoordField">
+      <label>Coordinates</label>
+      <input id="markerCoord" readonly />
+    </div>
+    <div class="row">
+      <button class="btn ghost" onclick="closeModal('markerModal')">Cancel</button>
+      <button class="btn danger" id="markerDeleteBtn" style="display:none;" onclick="deleteCurrentMarker()">Delete</button>
+      <button class="btn" id="markerSaveBtn" onclick="saveMarker()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ROAD MODAL -->
+<div class="modal" id="roadModal">
+  <div class="modal-card">
+    <h2>Roads</h2>
+    <ul class="road-list" id="roadList"></ul>
+    <button class="btn ghost" onclick="closeModal('roadModal')">Close</button>
+  </div>
+</div>
+
+<!-- MARKER LIST MODAL -->
+<div class="modal" id="markerListModal">
+  <div class="modal-card">
+    <h2>Markers</h2>
+    <ul class="marker-list" id="markerListEl"></ul>
+    <button class="btn ghost" onclick="closeModal('markerListModal')">Close</button>
+  </div>
+</div>
+
+<!-- EXPORT/IMPORT MODAL -->
+<div class="modal" id="ioModal">
+  <div class="modal-card">
+    <h2 id="ioTitle">Export Data</h2>
+    <p style="color:var(--muted);font-size:13px;margin:0 0 8px;" id="ioHint"></p>
+    <textarea id="ioData" rows="10" style="font-family:monospace;font-size:11px;"></textarea>
+    <div class="row" style="margin-top:8px;">
+      <button class="btn ghost" onclick="closeModal('ioModal')">Close</button>
+      <button class="btn" id="ioDownloadBtn" onclick="downloadJson()">Download .json</button>
+      <button class="btn" id="ioApplyBtn" style="display:none;" onclick="applyImport()">Import</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script>
+/* ============ FIREBASE CONFIG ============ */
+const firebaseConfig = {
+  apiKey: "AIzaSyBxnoas0Wc8oLxQJFvY-nNP1woHJPlSo50",
+  authDomain: "farm-roads.firebaseapp.com",
+  databaseURL: "https://farm-roads-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "farm-roads",
+  storageBucket: "farm-roads.firebasestorage.app",
+  messagingSenderId: "741650919879",
+  appId: "1:741650919879:web:a13abadf7b9b06b50ba9e2"
+};
+
+/* ============ CONFIG ============ */
+const COMPANIES = {
+  goldhill: { name: "Majestic Goldhill", color: "#e53935", acres: 123 },
+  unggul:   { name: "FC Unggul",         color: "#fbc02d", acres: 131 },
+  kukuh:    { name: "Durio Kukuh",       color: "#1e88e5", acres: 100 }
+};
+const DEFAULT_MARKER_TYPES = [
+  { key:"pond", label:"Pond", icon:"💧" },
+  { key:"hilltop_pond", label:"Hilltop Pond", icon:"⛰️" },
+  { key:"sprayer", label:"Sprayer Station", icon:"🌿" },
+  { key:"collection", label:"Durian Collection Station", icon:"🥭" },
+  { key:"gate", label:"Gate / Entry", icon:"🚪" },
+  { key:"shelter", label:"Shelter / Hut", icon:"🏠" },
+  { key:"junction", label:"Junction", icon:"⨉" },
+  { key:"other", label:"Other", icon:"📌" }
+];
+const STORAGE_KEY = "farm_roads_v1";
+const BOUNDARY_THRESHOLD_M = 7;   // points within this distance of another-company road = boundary
+const DUPLICATE_THRESHOLD_M = 7;  // points within this distance of OWN-company road = duplicate (skipped)
+
+/* ============ STATE ============ */
+let state = loadState();
+let mode = "rec";
+let map, gpsMarker, gpsAccuracyCircle;
+let watchId = null;
+let recording = false;
+let currentTrack = null;
+let roadLayers = {}; // id -> polyline
+let markerLayers = {}; // id -> marker
+let pendingMarker = null;       // {lat,lng,editingId}
+let selectedMarkerType = "pond";
+let lastKnownPos = null;
+let totalDistance = 0;
+
+/* ============ STORAGE ============ */
+function loadState(){
+  try{
+    const s = localStorage.getItem(STORAGE_KEY);
+    if(s) return JSON.parse(s);
+  }catch(e){}
+  return { roads:[], markers:[], settings:{ lastCenter:null } };
+}
+function saveState(){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+
+/* ============ FIREBASE CLOUD SYNC ============ */
+let db = null;
+let syncReady = false;
+let applyingRemote = false; // guard: don't re-push data we just received from cloud
+
+function setSyncStatus(kind){
+  const chip = document.getElementById('syncChip');
+  if(!chip) return;
+  chip.classList.remove('online','offline','error');
+  if(kind === 'online'){ chip.classList.add('online'); document.getElementById('syncTxt').textContent = 'Synced'; }
+  else if(kind === 'offline'){ chip.classList.add('offline'); document.getElementById('syncTxt').textContent = 'Offline'; }
+  else { chip.classList.add('error'); document.getElementById('syncTxt').textContent = 'No sync'; }
+}
+
+function firebaseInit(){
+  if(typeof firebase === 'undefined' || !firebaseConfig || !firebaseConfig.databaseURL){
+    setSyncStatus('error');
+    return; // app still works fully offline via localStorage
+  }
+  try{
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.database();
+  }catch(e){
+    setSyncStatus('error');
+    return;
+  }
+
+  // Live connection indicator
+  db.ref('.info/connected').on('value', s => setSyncStatus(s.val() ? 'online' : 'offline'));
+
+  // One-time migration: if cloud is empty but this device already has local data, push it up.
+  Promise.all([ db.ref('roads').once('value'), db.ref('markers').once('value') ])
+    .then(([rSnap, mSnap]) => {
+      if(!rSnap.exists() && state.roads.length){
+        state.roads.forEach(r => db.ref('roads/'+r.id).set(r));
+      }
+      if(!mSnap.exists() && state.markers.length){
+        state.markers.forEach(m => db.ref('markers/'+m.id).set(m));
+      }
+      // Now attach live listeners — these keep every device in sync.
+      db.ref('roads').on('value', onRoadsSnapshot);
+      db.ref('markers').on('value', onMarkersSnapshot);
+      syncReady = true;
+    })
+    .catch(() => setSyncStatus('error'));
+}
+
+function onRoadsSnapshot(snap){
+  const val = snap.val() || {};
+  applyingRemote = true;
+  state.roads = Object.values(val);
+  saveState();
+  renderAllRoads();
+  updateAdminStats();
+  applyingRemote = false;
+}
+function onMarkersSnapshot(snap){
+  const val = snap.val() || {};
+  applyingRemote = true;
+  state.markers = Object.values(val);
+  saveState();
+  renderAllMarkers();
+  updateAdminStats();
+  applyingRemote = false;
+}
+
+/* Push helpers — safe no-ops when offline-only (writes also queue & sync on reconnect) */
+function pushRoad(road){ if(db && !applyingRemote){ db.ref('roads/'+road.id).set(road).catch(()=>{}); } }
+function pushMarker(m){ if(db && !applyingRemote){ db.ref('markers/'+m.id).set(m).catch(()=>{}); } }
+function removeRoadRemote(id){ if(db){ db.ref('roads/'+id).remove().catch(()=>{}); } }
+function removeMarkerRemote(id){ if(db){ db.ref('markers/'+id).remove().catch(()=>{}); } }
+
+/* ============ MAP ============ */
+function initMap(){
+  // Try last known center, else fall back to Malaysia (durian country)
+  const center = state.settings.lastCenter || [4.2105, 101.9758];
+  map = L.map('map', {
+    zoomControl:true,
+    attributionControl:true,
+    maxZoom: 24,
+    minZoom: 2,
+    zoomSnap: 0.25,
+    zoomDelta: 0.5,
+    wheelPxPerZoomLevel: 80
+  }).setView(center, state.settings.lastCenter ? 17 : 7);
+
+  // Blank dark canvas — empty background so recorded roads stand out
+  const blank = L.tileLayer('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', {
+    attribution: 'Blank canvas',
+    maxZoom: 24
+  }).addTo(map);
+
+  // Optional satellite (Esri) — kept available in the layer switcher but OFF by default
+  const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    attribution:'Tiles © Esri',
+    maxNativeZoom: 19,
+    maxZoom: 24
+  });
+  // Optional plain street map
+  const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxNativeZoom: 19, maxZoom: 24, attribution:'© OSM'
+  });
+
+  L.control.layers({ "Blank (default)":blank, "Satellite":sat, "Street (OSM)":osm }).addTo(map);
+
+  map.on('moveend', () => {
+    state.settings.lastCenter = [map.getCenter().lat, map.getCenter().lng];
+    saveState();
+  });
+
+  map.on('click', (e) => {
+    if(mode === 'admin'){
+      pendingMarker = { lat:e.latlng.lat, lng:e.latlng.lng, editingId:null };
+      openMarkerModalForPending();
+    }
+  });
+
+  renderAllRoads();
+  renderAllMarkers();
+}
+
+/* ============ GPS ============ */
+function startGpsWatch(){
+  if(watchId !== null) return;
+  if(!navigator.geolocation){ toast("Geolocation not supported"); return; }
+  document.getElementById('gpsTxt').textContent = 'GPS connecting…';
+  document.getElementById('gpsChip').classList.add('gps');
+  watchId = navigator.geolocation.watchPosition(onPos, onPosErr, {
+    enableHighAccuracy:true, maximumAge:1000, timeout:15000
+  });
+}
+function stopGpsWatch(){
+  if(watchId !== null){ navigator.geolocation.clearWatch(watchId); watchId = null; }
+}
+function onPos(p){
+  const { latitude:lat, longitude:lng, accuracy } = p.coords;
+  lastKnownPos = { lat, lng, accuracy, t:p.timestamp };
+  document.getElementById('gpsTxt').textContent = `GPS ±${Math.round(accuracy)}m`;
+  document.getElementById('gpsChip').classList.add('gps');
+
+  // Update on-map dot
+  if(!gpsMarker){
+    gpsMarker = L.marker([lat,lng], { icon:L.divIcon({ className:'gps-dot', iconSize:[16,16] }) }).addTo(map);
+    gpsAccuracyCircle = L.circle([lat,lng], { radius:accuracy, className:'gps-accuracy', weight:1 }).addTo(map);
+    // Auto-center first fix (deep zoom)
+    map.setView([lat,lng], 20);
+  } else {
+    gpsMarker.setLatLng([lat,lng]);
+    gpsAccuracyCircle.setLatLng([lat,lng]).setRadius(accuracy);
+  }
+
+  if(recording && currentTrack){
+    if(accuracy > 50) return;
+    const pts = currentTrack.points;
+    if(pts.length > 0){
+      const last = pts[pts.length-1];
+      const d = haversine(last[0], last[1], lat, lng);
+      if(d < 2) return; // <2m step, skip
+    }
+    // Classify against existing roads
+    const cls = classifyPoint(lat, lng, currentTrack.company);
+    setRecChipStatus(cls.kind, cls.otherCompany);
+    if(cls.kind === 'duplicate'){
+      currentTrack.skippedDuplicates = (currentTrack.skippedDuplicates || 0) + 1;
+      return; // don't double-plot — the existing road already covers this
+    }
+    pts.push([lat, lng]);
+    currentTrack.flags.push(cls.kind);
+    currentTrack.others.push(cls.otherCompany || null);
+    if(pts.length > 1){
+      const prev = pts[pts.length-2];
+      totalDistance += haversine(prev[0], prev[1], lat, lng);
+    }
+    document.getElementById('ptCount').textContent = pts.length;
+    document.getElementById('distTxt').textContent = Math.round(totalDistance);
+    // Rebuild segmented polyline (road segments + dashed boundary segments)
+    if(currentTrack._layer) map.removeLayer(currentTrack._layer);
+    currentTrack._layer = renderTrackSegments(pts, currentTrack.flags, currentTrack.company).addTo(map);
+  }
+}
+function onPosErr(e){
+  document.getElementById('gpsTxt').textContent = 'GPS error';
+  document.getElementById('gpsChip').classList.remove('gps');
+  toast("GPS error: " + (e.message || e.code));
+}
+function haversine(lat1,lon1,lat2,lon2){
+  const R = 6371000;
+  const dLat = (lat2-lat1)*Math.PI/180;
+  const dLon = (lon2-lon1)*Math.PI/180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+/* Distance from a point to a line segment (in meters, equirectangular approximation —
+   accurate enough at the scale of a farm). */
+function pointToSegmentDist(lat, lng, lat1, lng1, lat2, lng2){
+  const midLat = (lat1 + lat2) / 2;
+  const cosMid = Math.cos(midLat * Math.PI/180);
+  const mPerDegLat = 111320;
+  const x  = (lng  - lng1) * cosMid * mPerDegLat;
+  const y  = (lat  - lat1) * mPerDegLat;
+  const dx = (lng2 - lng1) * cosMid * mPerDegLat;
+  const dy = (lat2 - lat1) * mPerDegLat;
+  const len2 = dx*dx + dy*dy;
+  let t = len2 === 0 ? 0 : (x*dx + y*dy) / len2;
+  t = Math.max(0, Math.min(1, t));
+  const px = t * dx, py = t * dy;
+  return Math.sqrt((x - px)**2 + (y - py)**2);
+}
+
+/* Classify a freshly-arrived GPS point against all existing roads.
+   Returns { kind: 'road' | 'boundary' | 'duplicate', otherCompany }.
+   - duplicate: within threshold of an existing road of the SAME company → skip
+   - boundary:  within threshold of an existing road of a DIFFERENT company → boundary segment
+   - road:      not near anything → normal recording
+   Same-company match wins over different-company match (so retracing your own road
+   never accidentally gets labelled as a boundary). */
+function classifyPoint(lat, lng, currentCompany){
+  let bestSame = Infinity;
+  let bestOther = Infinity;
+  let otherCompany = null;
+  for(const road of state.roads){
+    const pts = road.points;
+    for(let i=0; i<pts.length-1; i++){
+      const d = pointToSegmentDist(lat, lng, pts[i][0], pts[i][1], pts[i+1][0], pts[i+1][1]);
+      if(road.company === currentCompany){
+        if(d < bestSame) bestSame = d;
+      } else {
+        if(d < bestOther){ bestOther = d; otherCompany = road.company; }
+      }
+    }
+  }
+  if(bestSame < DUPLICATE_THRESHOLD_M) return { kind:'duplicate' };
+  if(bestOther < BOUNDARY_THRESHOLD_M) return { kind:'boundary', otherCompany };
+  return { kind:'road' };
+}
+
+/* Render a track (or partial track) as colored road segments + dashed white boundary
+   segments based on per-point flags. Returns a Leaflet FeatureGroup. */
+function renderTrackSegments(points, flags, company){
+  const color = COMPANIES[company].color;
+  const group = L.featureGroup();
+  if(points.length < 2) return group;
+  let curKind = flags[0];
+  let curStart = 0;
+  for(let i=1; i<=points.length; i++){
+    const nextKind = i < points.length ? flags[i] : null;
+    if(nextKind !== curKind){
+      const segPts = points.slice(curStart, i);
+      // overlap one point into the next segment for visual continuity
+      if(nextKind !== null) segPts.push(points[i]);
+      const style = curKind === 'boundary'
+        ? { color:'#ffffff', weight:6, opacity:.95, dashArray:'6,8' }
+        : { color, weight:5, opacity:.95 };
+      L.polyline(segPts, style).addTo(group);
+      curStart = i;
+      curKind = nextKind;
+    }
+  }
+  return group;
+}
+
+function setRecChipStatus(kind, otherCompany){
+  const chip = document.getElementById('recChip');
+  chip.classList.remove('rec','bnd','dup');
+  if(kind === 'boundary'){
+    chip.classList.add('bnd');
+    chip.innerHTML = `<span class="dot"></span>Boundary (with ${COMPANIES[otherCompany].name})`;
+  } else if(kind === 'duplicate'){
+    chip.classList.add('dup');
+    chip.innerHTML = `<span class="dot"></span>Already mapped — skipping`;
+  } else {
+    chip.classList.add('rec');
+    chip.innerHTML = `<span class="dot"></span>Recording`;
+  }
+}
+
+/* ============ RECORDING ============ */
+function startRecording(){
+  startGpsWatch();
+  const company = document.getElementById('companySel').value;
+  const name = document.getElementById('roadName').value.trim() || `Road ${state.roads.length+1}`;
+  currentTrack = {
+    id: uid(),
+    name,
+    company,
+    points: [],
+    flags: [],   // per-point: 'road' | 'boundary'
+    others: [],  // per-point: other company key when flag === 'boundary'
+    skippedDuplicates: 0,
+    startedAt: Date.now(),
+    _layer: null
+  };
+  recording = true;
+  totalDistance = 0;
+  document.getElementById('ptCount').textContent = 0;
+  document.getElementById('distTxt').textContent = 0;
+  document.getElementById('btnStart').style.display = 'none';
+  document.getElementById('btnStop').style.display = 'inline-flex';
+  document.getElementById('recChip').style.display = 'inline-flex';
+  document.getElementById('recChip').classList.add('rec');
+  // Wake lock to prevent screen sleep during recording
+  requestWakeLock();
+  toast("Recording started — drive slowly along the road.");
+}
+function stopRecording(){
+  if(!currentTrack) return;
+  recording = false;
+  document.getElementById('recChip').style.display = 'none';
+  document.getElementById('btnStart').style.display = 'inline-flex';
+  document.getElementById('btnStop').style.display = 'none';
+  releaseWakeLock();
+
+  const skipped = currentTrack.skippedDuplicates || 0;
+  if(currentTrack.points.length < 2){
+    if(currentTrack._layer) map.removeLayer(currentTrack._layer);
+    currentTrack = null;
+    toast(skipped > 0
+      ? `Nothing new to save — ${skipped} points already on an existing road.`
+      : "Not enough points captured — discarded.");
+    return;
+  }
+  // Compute boundary segment ranges from per-point flags
+  const boundaries = [];
+  let bStart = null, bOther = null;
+  for(let i=0; i<currentTrack.flags.length; i++){
+    if(currentTrack.flags[i] === 'boundary'){
+      if(bStart === null){ bStart = i; bOther = currentTrack.others[i]; }
+    } else {
+      if(bStart !== null){
+        boundaries.push({ start:bStart, end:i-1, otherCompany:bOther });
+        bStart = null; bOther = null;
+      }
+    }
+  }
+  if(bStart !== null){
+    boundaries.push({ start:bStart, end:currentTrack.flags.length-1, otherCompany:bOther });
+  }
+  const road = {
+    id: currentTrack.id,
+    name: currentTrack.name,
+    company: currentTrack.company,
+    points: currentTrack.points,
+    boundaries,
+    distance: Math.round(totalDistance),
+    startedAt: currentTrack.startedAt,
+    endedAt: Date.now()
+  };
+  state.roads.push(road);
+  saveState();
+  pushRoad(road);
+  if(currentTrack._layer) map.removeLayer(currentTrack._layer);
+  addRoadToMap(road);
+  currentTrack = null;
+  let msg = `Saved: ${road.name} (${road.distance}m, ${road.points.length} pts`;
+  if(boundaries.length) msg += `, ${boundaries.length} boundary section${boundaries.length>1?'s':''}`;
+  if(skipped) msg += `, skipped ${skipped} duplicate pts`;
+  msg += ')';
+  toast(msg);
+  // Reset chip text for next recording
+  const chip = document.getElementById('recChip');
+  chip.classList.remove('bnd','dup');
+  chip.innerHTML = '<span class="dot"></span>Recording';
+}
+function centerOnMe(){
+  startGpsWatch();
+  if(lastKnownPos){
+    map.setView([lastKnownPos.lat, lastKnownPos.lng], 21);
+  } else {
+    toast("Waiting for GPS fix…");
+  }
+}
+
+/* Wake lock */
+let wakeLock = null;
+async function requestWakeLock(){
+  try{ if('wakeLock' in navigator){ wakeLock = await navigator.wakeLock.request('screen'); } }catch(e){}
+}
+function releaseWakeLock(){ try{ wakeLock && wakeLock.release(); wakeLock=null; }catch(e){} }
+
+/* ============ RENDER ============ */
+function addRoadToMap(road){
+  // Rebuild per-point flag array from boundary ranges so we can use the segmenter
+  const flags = new Array(road.points.length).fill('road');
+  (road.boundaries || []).forEach(b => {
+    for(let i=b.start; i<=b.end && i<flags.length; i++) flags[i] = 'boundary';
+  });
+  const group = renderTrackSegments(road.points, flags, road.company).addTo(map);
+  group.eachLayer(l => l.bindPopup(roadPopupHtml(road)));
+  roadLayers[road.id] = group;
+}
+function renderAllRoads(){
+  Object.values(roadLayers).forEach(l => map.removeLayer(l));
+  roadLayers = {};
+  state.roads.forEach(addRoadToMap);
+}
+function roadPopupHtml(road){
+  const c = COMPANIES[road.company];
+  const bds = road.boundaries || [];
+  let bdLine = '';
+  if(bds.length){
+    const withCompanies = [...new Set(bds.map(b => COMPANIES[b.otherCompany]?.name).filter(Boolean))];
+    bdLine = `<div style="font-size:12px;color:#a06000;margin:4px 0;">⤵ Shares boundary with: ${withCompanies.join(', ')}</div>`;
+  }
+  return `<div style="font-family:sans-serif;min-width:160px;">
+    <div style="font-weight:600;border-left:4px solid ${c.color};padding-left:6px;">${escapeHtml(road.name)}</div>
+    <div style="font-size:12px;color:#555;margin:4px 0;">${c.name}</div>
+    <div style="font-size:12px;">${road.distance} m · ${road.points.length} pts</div>
+    ${bdLine}
+    <div style="margin-top:6px;">
+      <button onclick="editRoadName('${road.id}')" style="font-size:11px;">Rename</button>
+      <button onclick="deleteRoad('${road.id}')" style="font-size:11px;color:#c00;">Delete</button>
+    </div>
+  </div>`;
+}
+function addMarkerToMap(m){
+  const t = getMarkerType(m.type);
+  const icon = L.divIcon({
+    className:'',
+    html:`<div style="font-size:24px;line-height:1;text-shadow:0 0 4px #000,0 0 4px #000;text-align:center;">${t.icon}</div>`,
+    iconSize:[28,28], iconAnchor:[14,14]
+  });
+  const mk = L.marker([m.lat, m.lng], { icon }).addTo(map);
+  mk.bindTooltip(m.name || t.label, { permanent:true, direction:'top', offset:[0,-10], className:'marker-label' });
+  mk.bindPopup(()=> markerPopupHtml(m));
+  mk.on('click', ()=>{
+    if(mode === 'admin'){
+      // popup will show; user can click Edit
+    }
+  });
+  markerLayers[m.id] = mk;
+}
+function renderAllMarkers(){
+  Object.values(markerLayers).forEach(l => map.removeLayer(l));
+  markerLayers = {};
+  state.markers.forEach(addMarkerToMap);
+}
+function markerPopupHtml(m){
+  const t = getMarkerType(m.type);
+  return `<div style="font-family:sans-serif;min-width:180px;">
+    <div style="font-weight:600;">${t.icon} ${escapeHtml(m.name || t.label)}</div>
+    <div style="font-size:12px;color:#555;">${t.label}</div>
+    <div style="font-size:12px;margin-top:4px;">${escapeHtml(m.desc || '')}</div>
+    <div style="font-size:11px;color:#888;margin-top:4px;">${m.lat.toFixed(6)}, ${m.lng.toFixed(6)}</div>
+    <div style="margin-top:6px;">
+      <button onclick="editMarker('${m.id}')" style="font-size:11px;">Edit</button>
+      <button onclick="deleteMarker('${m.id}')" style="font-size:11px;color:#c00;">Delete</button>
+    </div>
+  </div>`;
+}
+function getMarkerType(key){
+  return DEFAULT_MARKER_TYPES.find(t=>t.key===key) || DEFAULT_MARKER_TYPES[DEFAULT_MARKER_TYPES.length-1];
+}
+function escapeHtml(s){ return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* ============ MARKER CRUD ============ */
+function openMarkerPlacer(){
+  if(!lastKnownPos){
+    toast("Tap anywhere on the map to drop a marker.");
+    return;
+  }
+  pendingMarker = { lat:lastKnownPos.lat, lng:lastKnownPos.lng, editingId:null };
+  openMarkerModalForPending();
+}
+function openMarkerModalForPending(){
+  document.getElementById('markerModalTitle').textContent = pendingMarker.editingId ? 'Edit marker' : 'Add marker';
+  document.getElementById('markerDeleteBtn').style.display = pendingMarker.editingId ? 'inline-flex' : 'none';
+  document.getElementById('markerCoord').value = `${pendingMarker.lat.toFixed(6)}, ${pendingMarker.lng.toFixed(6)}`;
+  if(!pendingMarker.editingId){
+    document.getElementById('markerName').value = '';
+    document.getElementById('markerDesc').value = '';
+    selectedMarkerType = 'pond';
+  } else {
+    const m = state.markers.find(x=>x.id===pendingMarker.editingId);
+    document.getElementById('markerName').value = m.name || '';
+    document.getElementById('markerDesc').value = m.desc || '';
+    selectedMarkerType = m.type;
+  }
+  renderMarkerTypeGrid();
+  openModal('markerModal');
+}
+function renderMarkerTypeGrid(){
+  const g = document.getElementById('markerTypeGrid');
+  g.innerHTML = '';
+  DEFAULT_MARKER_TYPES.forEach(t=>{
+    const b = document.createElement('button');
+    b.innerHTML = `${t.icon} ${t.label}`;
+    if(t.key === selectedMarkerType) b.classList.add('sel');
+    b.onclick = ()=>{ selectedMarkerType = t.key; renderMarkerTypeGrid(); };
+    g.appendChild(b);
+  });
+}
+function saveMarker(){
+  if(!pendingMarker) return;
+  const name = document.getElementById('markerName').value.trim();
+  const desc = document.getElementById('markerDesc').value.trim();
+  if(pendingMarker.editingId){
+    const m = state.markers.find(x=>x.id===pendingMarker.editingId);
+    m.name = name; m.desc = desc; m.type = selectedMarkerType;
+    if(markerLayers[m.id]){ map.removeLayer(markerLayers[m.id]); delete markerLayers[m.id]; }
+    addMarkerToMap(m);
+    pushMarker(m);
+  } else {
+    const m = {
+      id: uid(),
+      lat: pendingMarker.lat, lng: pendingMarker.lng,
+      type: selectedMarkerType, name, desc,
+      createdAt: Date.now()
+    };
+    state.markers.push(m);
+    addMarkerToMap(m);
+    pushMarker(m);
+  }
+  saveState();
+  closeModal('markerModal');
+  pendingMarker = null;
+  updateAdminStats();
+}
+function editMarker(id){
+  const m = state.markers.find(x=>x.id===id);
+  if(!m) return;
+  pendingMarker = { lat:m.lat, lng:m.lng, editingId:id };
+  openMarkerModalForPending();
+  map.closePopup();
+}
+function deleteCurrentMarker(){
+  if(pendingMarker && pendingMarker.editingId){
+    deleteMarker(pendingMarker.editingId);
+    closeModal('markerModal');
+  }
+}
+function deleteMarker(id){
+  if(!confirm("Delete this marker?")) return;
+  state.markers = state.markers.filter(x=>x.id!==id);
+  if(markerLayers[id]){ map.removeLayer(markerLayers[id]); delete markerLayers[id]; }
+  saveState();
+  removeMarkerRemote(id);
+  updateAdminStats();
+  map.closePopup();
+}
+
+/* ============ ROAD CRUD ============ */
+function editRoadName(id){
+  const r = state.roads.find(x=>x.id===id); if(!r) return;
+  const n = prompt("Road name:", r.name);
+  if(n !== null){ r.name = n.trim() || r.name; saveState(); pushRoad(r); renderAllRoads(); }
+}
+function deleteRoad(id){
+  if(!confirm("Delete this road?")) return;
+  state.roads = state.roads.filter(x=>x.id!==id);
+  if(roadLayers[id]){ map.removeLayer(roadLayers[id]); delete roadLayers[id]; }
+  saveState();
+  removeRoadRemote(id);
+  updateAdminStats();
+}
+function openRoadList(){
+  const ul = document.getElementById('roadList');
+  ul.innerHTML = '';
+  if(state.roads.length === 0){ ul.innerHTML = '<li>No roads recorded yet.</li>'; }
+  state.roads.forEach(r=>{
+    const c = COMPANIES[r.company];
+    const li = document.createElement('li');
+    li.innerHTML = `<span class="col" style="background:${c.color}"></span>
+      <span class="lbl"><b>${escapeHtml(r.name)}</b><br><small style="color:var(--muted)">${c.name} · ${r.distance}m · ${r.points.length}pts</small></span>
+      <button onclick="zoomRoad('${r.id}')">Zoom</button>
+      <button onclick="editRoadName('${r.id}')">Rename</button>
+      <button onclick="deleteRoad('${r.id}')">Del</button>`;
+    ul.appendChild(li);
+  });
+  openModal('roadModal');
+}
+function zoomRoad(id){
+  const r = state.roads.find(x=>x.id===id); if(!r) return;
+  closeModal('roadModal');
+  if(roadLayers[id]) map.fitBounds(roadLayers[id].getBounds(), { padding:[40,40] });
+}
+function openMarkerList(){
+  const ul = document.getElementById('markerListEl');
+  ul.innerHTML = '';
+  if(state.markers.length === 0){ ul.innerHTML = '<li>No markers yet.</li>'; }
+  state.markers.forEach(m=>{
+    const t = getMarkerType(m.type);
+    const li = document.createElement('li');
+    li.innerHTML = `<span style="font-size:18px;">${t.icon}</span>
+      <span class="lbl"><b>${escapeHtml(m.name || t.label)}</b><br><small style="color:var(--muted)">${t.label}${m.desc?' · '+escapeHtml(m.desc):''}</small></span>
+      <button onclick="zoomMarker('${m.id}')">Zoom</button>
+      <button onclick="editMarker('${m.id}');closeModal('markerListModal');">Edit</button>
+      <button onclick="deleteMarker('${m.id}')">Del</button>`;
+    ul.appendChild(li);
+  });
+  openModal('markerListModal');
+}
+function zoomMarker(id){
+  const m = state.markers.find(x=>x.id===id); if(!m) return;
+  closeModal('markerListModal');
+  map.setView([m.lat, m.lng], 22);
+  if(markerLayers[id]) markerLayers[id].openPopup();
+}
+
+/* ============ MODE SWITCH ============ */
+function switchMode(m){
+  mode = m;
+  document.getElementById('tabRec').classList.toggle('active', m==='rec');
+  document.getElementById('tabAdmin').classList.toggle('active', m==='admin');
+  document.getElementById('recPanel').style.display = m==='rec' ? 'block' : 'none';
+  document.getElementById('adminPanel').style.display = m==='admin' ? 'block' : 'none';
+  document.getElementById('modeSub').textContent = m==='rec' ? 'Recorder Mode' : 'Admin Mode';
+  updateAdminStats();
+}
+function updateAdminStats(){
+  document.getElementById('adminRoads').textContent = state.roads.length;
+  document.getElementById('adminMarkers').textContent = state.markers.length;
+}
+
+/* ============ MODAL HELPERS ============ */
+function openModal(id){ document.getElementById(id).classList.add('open'); }
+function closeModal(id){ document.getElementById(id).classList.remove('open'); }
+
+/* ============ EXPORT / IMPORT ============ */
+function openExport(){
+  document.getElementById('ioTitle').textContent = 'Export Data';
+  document.getElementById('ioHint').textContent = 'Backup copy. Data already auto-syncs to the cloud — this is just an extra offline backup.';
+  document.getElementById('ioData').value = JSON.stringify(state, null, 2);
+  document.getElementById('ioData').readOnly = true;
+  document.getElementById('ioApplyBtn').style.display = 'none';
+  document.getElementById('ioDownloadBtn').style.display = 'inline-flex';
+  openModal('ioModal');
+}
+function openImport(){
+  document.getElementById('ioTitle').textContent = 'Import Data';
+  document.getElementById('ioHint').textContent = 'Paste exported JSON here. This will MERGE with existing data (no duplicates by id).';
+  document.getElementById('ioData').value = '';
+  document.getElementById('ioData').readOnly = false;
+  document.getElementById('ioApplyBtn').style.display = 'inline-flex';
+  document.getElementById('ioDownloadBtn').style.display = 'none';
+  openModal('ioModal');
+}
+function applyImport(){
+  try{
+    const obj = JSON.parse(document.getElementById('ioData').value);
+    if(!obj.roads || !obj.markers) throw new Error("Missing roads/markers");
+    const existingRoadIds = new Set(state.roads.map(r=>r.id));
+    const existingMarkerIds = new Set(state.markers.map(m=>m.id));
+    let addedR=0, addedM=0;
+    obj.roads.forEach(r=>{ if(!existingRoadIds.has(r.id)){ state.roads.push(r); pushRoad(r); addedR++; } });
+    obj.markers.forEach(m=>{ if(!existingMarkerIds.has(m.id)){ state.markers.push(m); pushMarker(m); addedM++; } });
+    saveState();
+    renderAllRoads(); renderAllMarkers();
+    updateAdminStats();
+    closeModal('ioModal');
+    toast(`Imported: ${addedR} roads, ${addedM} markers.`);
+  }catch(e){ alert("Import failed: " + e.message); }
+}
+function downloadJson(){
+  const blob = new Blob([document.getElementById('ioData').value], { type:'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `farm-roads-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/* ============ TOAST ============ */
+let toastTimer = null;
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.remove('show'), 3000);
+}
+
+/* ============ BOOT ============ */
+window.addEventListener('load', () => {
+  initMap();
+  firebaseInit();
+  startGpsWatch();
+  updateAdminStats();
+  // re-acquire wake lock on visibility change
+  document.addEventListener('visibilitychange', () => {
+    if(document.visibilityState === 'visible' && recording) requestWakeLock();
+  });
+});
+
+/* Expose for inline onclicks */
+window.switchMode = switchMode;
+window.startRecording = startRecording;
+window.stopRecording = stopRecording;
+window.centerOnMe = centerOnMe;
+window.openExport = openExport;
+window.openImport = openImport;
+window.openMarkerPlacer = openMarkerPlacer;
+window.openRoadList = openRoadList;
+window.openMarkerList = openMarkerList;
+window.saveMarker = saveMarker;
+window.deleteCurrentMarker = deleteCurrentMarker;
+window.editMarker = editMarker;
+window.deleteMarker = deleteMarker;
+window.editRoadName = editRoadName;
+window.deleteRoad = deleteRoad;
+window.zoomRoad = zoomRoad;
+window.zoomMarker = zoomMarker;
+window.closeModal = closeModal;
+window.applyImport = applyImport;
+window.downloadJson = downloadJson;
+</script>
+</body>
+</html>
